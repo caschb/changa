@@ -378,8 +378,19 @@ class TreePiecePhysics
     u_int64_t nodeInterRemote;
     u_int64_t partInterLocal;
     u_int64_t partInterRemote;
-    float bbMin[3];             ///< boundingBox.lesser_corner
-    float bbMax[3];             ///< boundingBox.greater_corner
+    /// SFC key range this element owns. ChaNGa splits the SFC-ordered
+    /// particle list into equal-count pieces, so this is the element's actual
+    /// slice of the space-filling curve and is genuinely per-element -- unlike
+    /// TreePiece::boundingBox, which is the *global* box and identical across
+    /// every element.
+    u_int64_t keyFirst;
+    u_int64_t keyLast;
+    /// Extent of this element's own particles, accumulated over myParticles.
+    /// Note Phase 0.3 found per-element box volume near-useless as a
+    /// heterogeneity metric -- it is a geometric artifact of equal-count Morton
+    /// splitting. Carried for completeness rather than as a predictor.
+    double bbMin[3];
+    double bbMax[3];
     };
 
 /*

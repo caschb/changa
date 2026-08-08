@@ -6761,10 +6761,28 @@ void TreePiece::emitPhysics(int step, const CkCallback& cb) {
   // 1-indexed. This is O(nParticles + nBuckets) once per step per element,
   // against a gravity phase that is orders of magnitude more work.
   unsigned int nAct = 0;
-  if (myParticles != NULL) {
+  double lo[3] = { HUGE_VAL, HUGE_VAL, HUGE_VAL };
+  double hi[3] = { -HUGE_VAL, -HUGE_VAL, -HUGE_VAL };
+  if (myParticles != NULL && myNumParticles > 0) {
     for (unsigned int i = 1; i <= myNumParticles; i++) {
       if (myParticles[i].rung >= activeRung) nAct++;
+      const Vector3D<cosmoType> &pos = myParticles[i].position;
+      if (pos.x < lo[0]) lo[0] = pos.x;
+      if (pos.y < lo[1]) lo[1] = pos.y;
+      if (pos.z < lo[2]) lo[2] = pos.z;
+      if (pos.x > hi[0]) hi[0] = pos.x;
+      if (pos.y > hi[1]) hi[1] = pos.y;
+      if (pos.z > hi[2]) hi[2] = pos.z;
       }
+    // Particles are SFC-ordered within an element, so the ends of the array
+    // are the ends of this element's slice of the curve.
+    tpp.keyFirst = (u_int64_t) myParticles[1].key;
+    tpp.keyLast  = (u_int64_t) myParticles[myNumParticles].key;
+    }
+  else {
+    tpp.keyFirst = 0;
+    tpp.keyLast = 0;
+    for (int k = 0; k < 3; k++) { lo[k] = 0.0; hi[k] = 0.0; }
     }
   tpp.nActive = nAct;
 
@@ -6787,12 +6805,9 @@ void TreePiece::emitPhysics(int step, const CkCallback& cb) {
   tpp.nodeInterRemote = nodeRemote;
   tpp.partInterRemote = partRemote;
 
-  tpp.bbMin[0] = boundingBox.lesser_corner.x;
-  tpp.bbMin[1] = boundingBox.lesser_corner.y;
-  tpp.bbMin[2] = boundingBox.lesser_corner.z;
-  tpp.bbMax[0] = boundingBox.greater_corner.x;
-  tpp.bbMax[1] = boundingBox.greater_corner.y;
-  tpp.bbMax[2] = boundingBox.greater_corner.z;
+  // NOT TreePiece::boundingBox -- that is the global box and comes out
+  // identical for every element, which a first run confirmed.
+  for (int k = 0; k < 3; k++) { tpp.bbMin[k] = lo[k]; tpp.bbMax[k] = hi[k]; }
 
   contribute(sizeof(tpp), &tpp, CkReduction::concat, cb);
 }

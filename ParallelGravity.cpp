@@ -2818,6 +2818,7 @@ void Main::writePhysics(int iStep)
                     "num_buckets,num_active_buckets,tp_load,"
                     "node_inter_local,node_inter_remote,"
                     "part_inter_local,part_inter_remote,"
+                    "key_first,key_last,"
                     "bb_min_x,bb_min_y,bb_min_z,bb_max_x,bb_max_y,bb_max_z\n");
         bPhysicsFirstWrite = false;
         }
@@ -2830,7 +2831,8 @@ void Main::writePhysics(int iStep)
         fprintf(fp,
                 "%d,%d,%d,%d,%d,%u,%u,%u,%u,%u,%.17g,"
                 "%llu,%llu,%llu,%llu,"
-                "%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",
+                "%llu,%llu,"
+                "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n",
                 iStep, r.index, r.pe, r.activeRung, r.prevRungLB,
                 r.nParticles, r.nActive, r.nPrevActive,
                 r.numBuckets, r.numActiveBuckets, r.tpLoad,
@@ -2838,6 +2840,8 @@ void Main::writePhysics(int iStep)
                 (unsigned long long) r.nodeInterRemote,
                 (unsigned long long) r.partInterLocal,
                 (unsigned long long) r.partInterRemote,
+                (unsigned long long) r.keyFirst,
+                (unsigned long long) r.keyLast,
                 r.bbMin[0], r.bbMin[1], r.bbMin[2],
                 r.bbMax[0], r.bbMax[1], r.bbMax[2]);
         }
