@@ -332,6 +332,12 @@ class ProjectionsControl : public CBase_ProjectionsControl {
     contribute(cb); 
   } 
 
+  /// Open the bracket marking one big step on this PE.  Defined out of line in
+  /// DataManager.cpp, which has ParallelGravity.h for simulationStepUE.
+  void beginStep(int step, CkCallback cb);
+  /// Close the bracket opened by beginStep() on this PE.
+  void endStep(int step, CkCallback cb);
+
   void pup(PUP::er &p){
     CBase_ProjectionsControl::pup(p);
   }

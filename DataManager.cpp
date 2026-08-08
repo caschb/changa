@@ -1175,3 +1175,28 @@ void DataManager::clearInstrument(CkCallback const& cb){
 }
 
 #endif // CUDA
+
+/*
+ * Timestep boundaries for the trace-to-Parquet pipeline.
+ *
+ * These live on ProjectionsControl -- a group, one branch per PE -- rather than
+ * on Main, which is a mainchare and therefore exists only on PE 0.  A bracket
+ * emitted from Main::doSimulation() would appear in PE 0's log alone, leaving
+ * every execution on every other PE unattributable to a timestep.
+ *
+ * The step index travels in the bracket's nestedID, which is the only
+ * application-supplied integer a bracketed user event carries.  Note that
+ * traceBeginUserBracketEvent() drops it -- the NestedID spelling is required.
+ *
+ * Both calls are no-ops in a Charm++ built without tracing, and Main compiles
+ * out the broadcasts entirely there, so an untraced run pays nothing.
+ */
+void ProjectionsControl::beginStep(int step, CkCallback cb) {
+  traceBeginUserBracketEventNestedID(simulationStepUE, step);
+  contribute(cb);
+}
+
+void ProjectionsControl::endStep(int step, CkCallback cb) {
+  traceEndUserBracketEventNestedID(simulationStepUE, step);
+  contribute(cb);
+}

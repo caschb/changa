@@ -153,6 +153,7 @@ int partForceUE;
 
 int tbFlushRequestsUE;
 int prefetchDoneUE;
+int simulationStepUE;
 
 CkGroupID dataManagerID;
 CkArrayID treePieceID;
@@ -248,6 +249,12 @@ Main::Main(CkArgMsg* m) {
         tbFlushRequestsUE = traceRegisterUserEvent("TreeBuild::buildOctTree::flushRequests");
 
         prefetchDoneUE = traceRegisterUserEvent("PrefetchDone");
+
+        // Registered unconditionally so the name reaches the .sts table even
+        // when a build never emits the event.  The name is the contract with
+        // the trace-to-Parquet pipeline, which resolves it through the STS
+        // EVENT registry; change it here and the pipeline needs -s to match.
+        simulationStepUE = traceRegisterUserEvent("SimulationStep");
 	
 	prmInitialize(&prm,_Leader,_Trailer);
 	csmInitialize(&param.csm);
@@ -2786,12 +2793,30 @@ Main::doSimulation()
     }
     
     if (verbosity) ckout << "Starting big step " << iStep << endl;
+#ifdef CHANGA_TRACE_TIMESTEPS
+    // Mark the timestep boundary on every PE.  Broadcast rather than emitted
+    // here because Main is a mainchare and lives on PE 0 alone; the reduction
+    // callback guarantees every PE has opened its bracket before any step work
+    // is issued.  step_id is iStep, so it lines up with the "Big step N took
+    // ..." line this loop writes to the run log.
+    //
+    // Compiled out when Charm++ was built without tracing, which is exactly
+    // the `base` JUBE tag, so the untraced runs used as the perturbation
+    // baseline pay nothing at all -- not even the two barriers.
+    prjgrp.beginStep(iStep, CkCallbackResumeThread());
+#endif
     startTime = CkWallTimer();
     starCenterOfMass();
     for(int iRung = 0; iRung < timings.size(); iRung++) {
         timings[iRung].clear();
         }
     advanceBigStep(iStep-1);
+#ifdef CHANGA_TRACE_TIMESTEPS
+    // Closed before stepTime is taken, so the cost of the boundary itself
+    // lands inside ChaNGa's own reported step time rather than hiding between
+    // steps.  The traced bracket and that log line then measure the same span.
+    prjgrp.endStep(iStep, CkCallbackResumeThread());
+#endif
     double stepTime = CkWallTimer() - startTime;
     ckout << "Big step " << iStep << " took " << stepTime << " seconds."
 	  << endl;

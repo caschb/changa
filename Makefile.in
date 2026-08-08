@@ -86,6 +86,14 @@ ifeq (yes,@PROJECTIONS@)
   target        := $(target).prj
   charmrun      := $(charmrun).prj
   debug_ldflags += -tracemode projections
+  # Gates the per-timestep user-event brackets emitted by ProjectionsControl.
+  # Deliberately our own define rather than Charm++'s CMK_TRACE_ENABLED: that
+  # one is 0/1 through the autoconf build but is set from ${TRACING} in the
+  # CMake build, so `#if CMK_TRACE_ENABLED` could see the token TRUE, evaluate
+  # it as 0, and silently compile the instrumentation out of the very build
+  # that is supposed to have it. configure.ac already refuses PROJECTIONS=yes
+  # against a non-tracing Charm++, so this flag implies tracing is available.
+  debug_flags   += -DCHANGA_TRACE_TIMESTEPS
 endif
 
 # ------- Sanitizers ----------------------------------------------------------

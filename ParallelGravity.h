@@ -181,6 +181,10 @@ extern int partForceUE;
 extern int tbFlushRequestsUE;
 extern int prefetchDoneUE;
 
+/// User event bracketing one big step, emitted once per PE by
+/// ProjectionsControl.  The step index travels in the bracket's nestedID.
+extern int simulationStepUE;
+
 extern int _prefetch;
 extern int _randChunks;
 extern int _numChunks;

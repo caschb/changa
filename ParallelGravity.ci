@@ -62,6 +62,7 @@ mainmodule ParallelGravity {
 
   readonly int tbFlushRequestsUE;
   readonly int prefetchDoneUE;
+  readonly int simulationStepUE;
 
 #ifdef PUSH_GRAVITY
   readonly CkGroupID ckMulticastGrpId;
@@ -201,6 +202,10 @@ mainmodule ParallelGravity {
     entry ProjectionsControl();
     entry [notrace] void on(CkCallback);
     entry [notrace] void off(CkCallback);                     
+    // [notrace] like on/off above: the boundary marker must not generate an
+    // Execution record of its own, which would then need attributing to a step.
+    entry [notrace] void beginStep(int step, CkCallback);
+    entry [notrace] void endStep(int step, CkCallback);
   };                                                          
 
 #ifdef REDUCTION_HELPER
