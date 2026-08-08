@@ -222,6 +222,12 @@ Main::Main(CkArgMsg* m) {
 	bIsRestarting = 0;
         bHaveAlpha = 0;
 	bChkFirst = 1;
+	// Truncate-then-append, so a rerun in the same directory replaces the
+	// side file rather than growing it. A checkpoint restart re-enters this
+	// constructor and would therefore truncate; benchmark runs do not
+	// checkpoint, but a production restart would want this carried in the
+	// checkpoint instead.
+	bPhysicsFirstWrite = true;
 	dSimStartTime = CkWallTimer();
 
   int threadNum = CkMyNodeSize();
@@ -2776,6 +2782,69 @@ int safeMkdir(const char *achFile);
 /// simulation when done.
 ///
 
+
+/// @brief Collect per-TreePiece state for one big step into the side file.
+///
+/// The bulk physics deliberately does not travel in the Projections trace --
+/// see the carrier split in the CCGrid plan. The trace carries only the step
+/// boundaries, which are small and give measured rather than inferred time
+/// alignment; everything per-chare lands here and is joined afterwards on
+/// (index, step).
+///
+/// CSV rather than a binary format: this is at most numTreePieces * nSteps
+/// rows, which is negligible beside a trace measured in gigabytes, and being
+/// readable makes a bad column obvious rather than something to discover
+/// three transformations downstream.
+void Main::writePhysics(int iStep)
+{
+    CkReductionMsg *msg;
+    treeProxy.emitPhysics(iStep, CkCallbackResumeThread((void*&)msg));
+
+    TreePiecePhysics *rows = (TreePiecePhysics *) msg->getData();
+    int nRows = msg->getSize() / sizeof(*rows);
+    CkAssert(msg->getSize() == nRows * sizeof(*rows));
+
+    std::string fname = std::string(param.achOutName) + ".physics.csv";
+    FILE *fp = fopen(fname.c_str(), bPhysicsFirstWrite ? "w" : "a");
+    if (fp == NULL) {
+        CkError("Could not open physics side file %s\n", fname.c_str());
+        delete msg;
+        return;
+        }
+
+    if (bPhysicsFirstWrite) {
+        fprintf(fp, "step,index,pe,active_rung,prev_rung_lb,"
+                    "n_particles,n_active,n_prev_active,"
+                    "num_buckets,num_active_buckets,tp_load,"
+                    "node_inter_local,node_inter_remote,"
+                    "part_inter_local,part_inter_remote,"
+                    "bb_min_x,bb_min_y,bb_min_z,bb_max_x,bb_max_y,bb_max_z\n");
+        bPhysicsFirstWrite = false;
+        }
+
+    // concat does not order its contributions, so rows arrive in whatever
+    // order the reduction tree produced. `index` is the join key; leave the
+    // ordering to whatever reads this.
+    for (int i = 0; i < nRows; i++) {
+        const TreePiecePhysics &r = rows[i];
+        fprintf(fp,
+                "%d,%d,%d,%d,%d,%u,%u,%u,%u,%u,%.17g,"
+                "%llu,%llu,%llu,%llu,"
+                "%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",
+                iStep, r.index, r.pe, r.activeRung, r.prevRungLB,
+                r.nParticles, r.nActive, r.nPrevActive,
+                r.numBuckets, r.numActiveBuckets, r.tpLoad,
+                (unsigned long long) r.nodeInterLocal,
+                (unsigned long long) r.nodeInterRemote,
+                (unsigned long long) r.partInterLocal,
+                (unsigned long long) r.partInterRemote,
+                r.bbMin[0], r.bbMin[1], r.bbMin[2],
+                r.bbMax[0], r.bbMax[1], r.bbMax[2]);
+        }
+    fclose(fp);
+    delete msg;
+}
+
 void
 Main::doSimulation()
 {
@@ -2812,6 +2881,10 @@ Main::doSimulation()
         }
     advanceBigStep(iStep-1);
 #ifdef CHANGA_TRACE_TIMESTEPS
+    // Sampled before the bracket closes so the physics row and the traced
+    // interval describe the same instant, and so the reduction's own cost is
+    // inside the step rather than between steps.
+    writePhysics(iStep);
     // Closed before stepTime is taken, so the cost of the boundary itself
     // lands inside ChaNGa's own reported step time rather than hiding between
     // steps.  The traced bracket and that log line then measure the same span.

@@ -351,6 +351,37 @@ class CountSetPart
 	}
     };
 
+/// @brief Per-TreePiece simulation state at the end of one big step.
+///
+/// Written to a side file and joined against the Projections trace on
+/// (index, step). Kept a flat POD so it can travel by CkReduction::concat,
+/// which is what ChaNGa already uses for CountSetPart. concat does NOT order
+/// its contributions, so `index` carries the join key rather than the array
+/// position.
+class TreePiecePhysics
+{
+ public:
+    int index;                  ///< TreePiece index: the join key
+    int pe;                     ///< PE the piece was on when sampled
+    int activeRung;             ///< Rung this step operated at
+    int prevRungLB;             ///< iPrevRungLB, the rung the LB last saw
+    unsigned int nParticles;    ///< myNumParticles
+    unsigned int nActive;       ///< myNumActiveParticles
+    unsigned int nPrevActive;   ///< nPrevActiveParts
+    unsigned int numBuckets;
+    unsigned int numActiveBuckets;
+    /// getObjTime(): the load Charm++ measured for this element. This is
+    /// ChaNGa's own load estimate and therefore the paper's honest baseline --
+    /// beating naive persistence alone would prove nothing.
+    double tpLoad;
+    u_int64_t nodeInterLocal;
+    u_int64_t nodeInterRemote;
+    u_int64_t partInterLocal;
+    u_int64_t partInterRemote;
+    float bbMin[3];             ///< boundingBox.lesser_corner
+    float bbMax[3];             ///< boundingBox.greater_corner
+    };
+
 /*
  * Multistepping routines
  *
@@ -539,6 +570,11 @@ class Main : public CBase_Main {
        void turnProjectionsOn(int activeRung);
        void turnProjectionsOff();
 #endif
+
+       /// Collect per-TreePiece state for one big step and append it to the
+       /// physics side file. Opens the file on first use.
+       void writePhysics(int iStep);
+       bool bPhysicsFirstWrite;
 
 
 public:
@@ -1961,6 +1997,12 @@ public:
         void startlb(const CkCallback &cb, int activeRung);
   void setTreePieceLoad(int activeRung);
   void populateSavedPhaseData(int phase, double tpload, unsigned int activeparts);
+  /// Contribute this element's end-of-step simulation state; see
+  /// TreePiecePhysics. Declared unconditionally because it is a .ci entry
+  /// method: charmxi does not see -DCHANGA_TRACE_TIMESTEPS, so a guarded
+  /// definition would leave the generated dispatch code unresolved in a base
+  /// build. Only the call site in Main::doSimulation() is guarded.
+  void emitPhysics(int step, const CkCallback& cb);
   bool havePhaseData(int phase);
   void savePhaseData(std::vector<double> &loads, std::vector<unsigned int>
     &parts_per_phase, double* shuffleloads, unsigned int *shuffleparts,

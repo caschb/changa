@@ -6731,3 +6731,51 @@ void ReductionHelper::senseLocalTreePieces(){
 #endif
 
 
+
+/// @brief Sample this element's simulation state at the end of a big step.
+///
+/// Sampled after gravity has run, so the interaction counters are populated.
+/// Note they are reset per gravity invocation in startGravity(), so on a
+/// multistepping run they describe the *last* gravity phase of the step rather
+/// than the whole step -- which is the phase the next step's load balancer
+/// decision is actually based on.
+///
+/// tpLoad comes from getObjTime(), i.e. the load Charm++'s instrumentation
+/// measured for this element. It is ChaNGa's own estimate and therefore the
+/// baseline any physics-based prediction has to beat.
+void TreePiece::emitPhysics(int step, const CkCallback& cb) {
+  TreePiecePhysics tpp;
+
+  tpp.index            = thisIndex;
+  tpp.pe               = CkMyPe();
+  tpp.activeRung       = activeRung;
+  tpp.prevRungLB       = iPrevRungLB;
+  tpp.nParticles       = myNumParticles;
+  tpp.nActive          = myNumActiveParticles;
+  tpp.nPrevActive      = nPrevActiveParts;
+  tpp.numBuckets       = numBuckets;
+  tpp.numActiveBuckets = numActiveBuckets;
+  tpp.tpLoad           = getObjTime();
+
+  tpp.nodeInterLocal = nodeInterLocal;
+  tpp.partInterLocal = particleInterLocal;
+  // The remote counters are per-chunk arrays, summed the same way
+  // collectStatistics() does. They can be null if gravity never ran.
+  u_int64_t nodeRemote = 0;
+  u_int64_t partRemote = 0;
+  for (int i = 0; i < numChunks; ++i) {
+    if (nodeInterRemote != NULL) nodeRemote += nodeInterRemote[i];
+    if (particleInterRemote != NULL) partRemote += particleInterRemote[i];
+  }
+  tpp.nodeInterRemote = nodeRemote;
+  tpp.partInterRemote = partRemote;
+
+  tpp.bbMin[0] = boundingBox.lesser_corner.x;
+  tpp.bbMin[1] = boundingBox.lesser_corner.y;
+  tpp.bbMin[2] = boundingBox.lesser_corner.z;
+  tpp.bbMax[0] = boundingBox.greater_corner.x;
+  tpp.bbMax[1] = boundingBox.greater_corner.y;
+  tpp.bbMax[2] = boundingBox.greater_corner.z;
+
+  contribute(sizeof(tpp), &tpp, CkReduction::concat, cb);
+}

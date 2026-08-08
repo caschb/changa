@@ -405,6 +405,8 @@ mainmodule ParallelGravity {
     entry void starCenterOfMass(const CkCallback& cb);
     entry void calcEnergy(const CkCallback& cb);
     entry void colNParts(const CkCallback &cb);
+    // Sampled once per big step; contributes a TreePiecePhysics by concat.
+    entry void emitPhysics(int step, const CkCallback &cb);
     entry [nokeep] void newOrder(const NewMaxOrder nStarts[n], const int n,
 			  const CkCallback &cb);
     entry void setNParts(int64_t _nTotalSPH, int64_t _nTotalDark,
