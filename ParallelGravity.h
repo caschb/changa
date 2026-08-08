@@ -402,6 +402,24 @@ class TreePiecePhysics
     /// splitting. Carried for completeness rather than as a predictor.
     double bbMin[3];
     double bbMax[3];
+    /// Mean and max of GravityParticle::fDensity over this element's particles.
+    ///
+    /// This is ChaNGa's own SPH-style neighbour density estimate, which is what
+    /// makes it worth carrying: measured 2026-08-08, the *geometric* density
+    /// proxies available for free are useless as load predictors --
+    /// n_particles/bb_volume scores a within-phase Spearman of -0.06..0.04
+    /// against traced time at every rung, and n_particles/key_span reaches only
+    /// 0.18. Equal-count Morton splitting strips geometric extent of its
+    /// information, exactly as Phase 0.3 found.
+    ///
+    /// **Zero unless density has been computed.** ChaNGa only runs the density
+    /// smooth inside Main::writeOutput() when bDoDensity is set, so these read
+    /// 0 until the first output and are otherwise as stale as the last one.
+    /// Set iOutInterval to 1 to refresh them every big step -- at the cost of
+    /// a neighbour-search pass and a tipsy write per step, which is why it is
+    /// not the default. See charm-benchmarks docs/design-notes.org.
+    double densityMean;
+    double densityMax;
     };
 
 /*

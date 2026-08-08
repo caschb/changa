@@ -2855,7 +2855,8 @@ void Main::writePhysics(int iStep, int iSubStep, int iPhase)
                     "node_inter_local,node_inter_remote,"
                     "part_inter_local,part_inter_remote,"
                     "key_first,key_last,"
-                    "bb_min_x,bb_min_y,bb_min_z,bb_max_x,bb_max_y,bb_max_z\n");
+                    "bb_min_x,bb_min_y,bb_min_z,bb_max_x,bb_max_y,bb_max_z,"
+                    "density_mean,density_max\n");
         bPhysicsFirstWrite = false;
         }
 
@@ -2868,7 +2869,7 @@ void Main::writePhysics(int iStep, int iSubStep, int iPhase)
                 "%d,%d,%d,%d,%d,%d,%d,%u,%u,%u,%u,%u,%.17g,"
                 "%llu,%llu,%llu,%llu,"
                 "%llu,%llu,"
-                "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n",
+                "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n",
                 iStep, iSubStep, iPhase,
                 r.index, r.pe, r.activeRung, r.prevRungLB,
                 r.nParticles, r.nActive, r.nPrevActive,
@@ -2880,7 +2881,8 @@ void Main::writePhysics(int iStep, int iSubStep, int iPhase)
                 (unsigned long long) r.keyFirst,
                 (unsigned long long) r.keyLast,
                 r.bbMin[0], r.bbMin[1], r.bbMin[2],
-                r.bbMax[0], r.bbMax[1], r.bbMax[2]);
+                r.bbMax[0], r.bbMax[1], r.bbMax[2],
+                r.densityMean, r.densityMax);
         }
     fclose(fp);
     delete msg;

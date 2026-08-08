@@ -6764,9 +6764,16 @@ void TreePiece::emitPhysics(int step, const CkCallback& cb) {
   unsigned int nAct = 0;
   double lo[3] = { HUGE_VAL, HUGE_VAL, HUGE_VAL };
   double hi[3] = { -HUGE_VAL, -HUGE_VAL, -HUGE_VAL };
+  double denSum = 0.0;
+  double denMax = 0.0;
   if (myParticles != NULL && myNumParticles > 0) {
     for (unsigned int i = 1; i <= myNumParticles; i++) {
       if (myParticles[i].rung >= activeRung) nAct++;
+      // Reads 0 until Main::writeOutput() has run a density smooth. Free to
+      // accumulate here since this loop is already being walked.
+      const double den = myParticles[i].fDensity;
+      denSum += den;
+      if (den > denMax) denMax = den;
       const Vector3D<cosmoType> &pos = myParticles[i].position;
       if (pos.x < lo[0]) lo[0] = pos.x;
       if (pos.y < lo[1]) lo[1] = pos.y;
@@ -6786,6 +6793,8 @@ void TreePiece::emitPhysics(int step, const CkCallback& cb) {
     for (int k = 0; k < 3; k++) { lo[k] = 0.0; hi[k] = 0.0; }
     }
   tpp.nActive = nAct;
+  tpp.densityMean = (myNumParticles > 0) ? denSum / myNumParticles : 0.0;
+  tpp.densityMax = denMax;
 
   unsigned int nActBuckets = 0;
   for (unsigned int i = 0; i < numBuckets && i < bucketList.size(); i++) {
