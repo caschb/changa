@@ -6732,13 +6732,14 @@ void ReductionHelper::senseLocalTreePieces(){
 
 
 
-/// @brief Sample this element's simulation state at the end of a big step.
+/// @brief Sample this element's simulation state at the end of one substep.
 ///
-/// Sampled after gravity has run, so the interaction counters are populated.
-/// Note they are reset per gravity invocation in startGravity(), so on a
-/// multistepping run they describe the *last* gravity phase of the step rather
-/// than the whole step -- which is the phase the next step's load balancer
-/// decision is actually based on.
+/// Called once per iteration of advanceBigStep()'s rung loop, after gravity has
+/// run, so the interaction counters are populated.  They are reset per gravity
+/// invocation in startGravity(), which is exactly why the call site is per
+/// substep: sampled once per big step they would describe only its last gravity
+/// phase, and activeRung -- read below, and the whole point of the row -- would
+/// always read 0, because the loop winds back to rung 0 to close the step.
 ///
 /// tpLoad comes from getObjTime(), i.e. the load Charm++'s instrumentation
 /// measured for this element. It is ChaNGa's own estimate and therefore the

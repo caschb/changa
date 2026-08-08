@@ -63,6 +63,7 @@ mainmodule ParallelGravity {
   readonly int tbFlushRequestsUE;
   readonly int prefetchDoneUE;
   readonly int simulationStepUE;
+  readonly int gravityPhaseUE;
 
 #ifdef PUSH_GRAVITY
   readonly CkGroupID ckMulticastGrpId;
@@ -206,6 +207,8 @@ mainmodule ParallelGravity {
     // Execution record of its own, which would then need attributing to a step.
     entry [notrace] void beginStep(int step, CkCallback);
     entry [notrace] void endStep(int step, CkCallback);
+    entry [notrace] void beginPhase(int phase, CkCallback);
+    entry [notrace] void endPhase(int phase, CkCallback);
   };                                                          
 
 #ifdef REDUCTION_HELPER

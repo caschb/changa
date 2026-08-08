@@ -154,6 +154,7 @@ int partForceUE;
 int tbFlushRequestsUE;
 int prefetchDoneUE;
 int simulationStepUE;
+int gravityPhaseUE;
 
 CkGroupID dataManagerID;
 CkArrayID treePieceID;
@@ -228,6 +229,7 @@ Main::Main(CkArgMsg* m) {
 	// checkpoint, but a production restart would want this carried in the
 	// checkpoint instead.
 	bPhysicsFirstWrite = true;
+	nPhysicsPhase = 0;
 	dSimStartTime = CkWallTimer();
 
   int threadNum = CkMyNodeSize();
@@ -261,6 +263,7 @@ Main::Main(CkArgMsg* m) {
         // the trace-to-Parquet pipeline, which resolves it through the STS
         // EVENT registry; change it here and the pipeline needs -s to match.
         simulationStepUE = traceRegisterUserEvent("SimulationStep");
+        gravityPhaseUE = traceRegisterUserEvent("GravityPhase");
 	
 	prmInitialize(&prm,_Leader,_Trailer);
 	csmInitialize(&param.csm);
@@ -1925,6 +1928,15 @@ void Main::advanceBigStep(int iStep) {
 
   while (currentStep < MAXSUBSTEPS) {
 
+#ifdef CHANGA_TRACE_TIMESTEPS
+    // One bracket per iteration of this loop, nested inside the big step's.
+    // The whole iteration is bracketed rather than just the gravity call: drift
+    // and the kicks are part of the substep, and attributing their executions
+    // anywhere else would leave gaps between consecutive phases.
+    const int iPhase = nPhysicsPhase++;
+    prjgrp.beginPhase(iPhase, CkCallbackResumeThread());
+#endif
+
     if(!param.bStaticTest) {
       CkAssert(param.dDelta != 0.0);
       timings[activeRung].count++;
@@ -2101,6 +2113,19 @@ void Main::advanceBigStep(int iStep) {
     else
         waitForGravity(cbGravity, gravStartTime, activeRung);
 
+#ifdef CHANGA_TRACE_TIMESTEPS
+    // After gravity has completed -- the closing kick waits on cbGravity, and
+    // the static-test branch waits explicitly -- so the interaction counters
+    // are this substep's, not the previous one's.  Still before the next
+    // iteration's adjust(), so activeRung and every particle's rung still hold
+    // the values this substep ran with.
+    //
+    // iStep is 0-based here; the caller passes iStep-1.  Add it back so the
+    // side file's step column matches the simulationStepUE bracket and the
+    // "Big step N took ..." log line.
+    writePhysics(iStep + 1, currentStep, iPhase);
+#endif
+
 #if COSMO_STATS > 0
     /********* TreePiece Statistics ********/
     ckerr << "Total statistics iteration " << iStep << "/";
@@ -2151,6 +2176,10 @@ void Main::advanceBigStep(int iStep) {
       CkPrintf("wall time %g exceeded limit %g within advancestep\n", CkWallTimer()-wallTimeStart, param.iWallRunTime*60.);
       CkExit();
     }
+#endif
+
+#ifdef CHANGA_TRACE_TIMESTEPS
+    prjgrp.endPhase(iPhase, CkCallbackResumeThread());
 #endif
 
   }
@@ -2783,19 +2812,26 @@ int safeMkdir(const char *achFile);
 ///
 
 
-/// @brief Collect per-TreePiece state for one big step into the side file.
+/// @brief Collect per-TreePiece state for one substep into the side file.
 ///
 /// The bulk physics deliberately does not travel in the Projections trace --
-/// see the carrier split in the CCGrid plan. The trace carries only the step
+/// see the carrier split in the CCGrid plan. The trace carries only the substep
 /// boundaries, which are small and give measured rather than inferred time
 /// alignment; everything per-chare lands here and is joined afterwards on
-/// (index, step).
+/// (index, phase).
+///
+/// Sampled once per substep of advanceBigStep()'s rung loop, not once per big
+/// step.  Sampling at the end of the big step -- which an earlier version did
+/// -- reads activeRung after it has fallen back to 0 for the closing substep,
+/// so every row reported rung 0 and n_active == n_particles even on steps whose
+/// run log showed three populated rungs.  The active set is a property of the
+/// substep; there is no per-big-step value of it to record.
 ///
 /// CSV rather than a binary format: this is at most numTreePieces * nSteps
 /// rows, which is negligible beside a trace measured in gigabytes, and being
 /// readable makes a bad column obvious rather than something to discover
 /// three transformations downstream.
-void Main::writePhysics(int iStep)
+void Main::writePhysics(int iStep, int iSubStep, int iPhase)
 {
     CkReductionMsg *msg;
     treeProxy.emitPhysics(iStep, CkCallbackResumeThread((void*&)msg));
@@ -2813,7 +2849,7 @@ void Main::writePhysics(int iStep)
         }
 
     if (bPhysicsFirstWrite) {
-        fprintf(fp, "step,index,pe,active_rung,prev_rung_lb,"
+        fprintf(fp, "step,sub_step,phase,index,pe,active_rung,prev_rung_lb,"
                     "n_particles,n_active,n_prev_active,"
                     "num_buckets,num_active_buckets,tp_load,"
                     "node_inter_local,node_inter_remote,"
@@ -2829,11 +2865,12 @@ void Main::writePhysics(int iStep)
     for (int i = 0; i < nRows; i++) {
         const TreePiecePhysics &r = rows[i];
         fprintf(fp,
-                "%d,%d,%d,%d,%d,%u,%u,%u,%u,%u,%.17g,"
+                "%d,%d,%d,%d,%d,%d,%d,%u,%u,%u,%u,%u,%.17g,"
                 "%llu,%llu,%llu,%llu,"
                 "%llu,%llu,"
                 "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n",
-                iStep, r.index, r.pe, r.activeRung, r.prevRungLB,
+                iStep, iSubStep, iPhase,
+                r.index, r.pe, r.activeRung, r.prevRungLB,
                 r.nParticles, r.nActive, r.nPrevActive,
                 r.numBuckets, r.numActiveBuckets, r.tpLoad,
                 (unsigned long long) r.nodeInterLocal,
@@ -2885,10 +2922,10 @@ Main::doSimulation()
         }
     advanceBigStep(iStep-1);
 #ifdef CHANGA_TRACE_TIMESTEPS
-    // Sampled before the bracket closes so the physics row and the traced
-    // interval describe the same instant, and so the reduction's own cost is
-    // inside the step rather than between steps.
-    writePhysics(iStep);
+    // The physics sampling is not here.  It happens once per substep inside
+    // advanceBigStep(), because activeRung and the active set only have a
+    // value there; by this point the rung loop has wound back to rung 0.
+    //
     // Closed before stepTime is taken, so the cost of the boundary itself
     // lands inside ChaNGa's own reported step time rather than hiding between
     // steps.  The traced bracket and that log line then measure the same span.

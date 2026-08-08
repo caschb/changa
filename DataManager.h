@@ -338,6 +338,12 @@ class ProjectionsControl : public CBase_ProjectionsControl {
   /// Close the bracket opened by beginStep() on this PE.
   void endStep(int step, CkCallback cb);
 
+  /// Open the bracket marking one substep of the rung loop on this PE, nested
+  /// inside the big step's bracket.  See gravityPhaseUE.
+  void beginPhase(int phase, CkCallback cb);
+  /// Close the bracket opened by beginPhase() on this PE.
+  void endPhase(int phase, CkCallback cb);
+
   void pup(PUP::er &p){
     CBase_ProjectionsControl::pup(p);
   }

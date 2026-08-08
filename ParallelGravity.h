@@ -185,6 +185,17 @@ extern int prefetchDoneUE;
 /// ProjectionsControl.  The step index travels in the bracket's nestedID.
 extern int simulationStepUE;
 
+/// User event bracketing one substep of advanceBigStep()'s rung loop, nested
+/// inside the simulationStepUE bracket and emitted once per PE by the same
+/// group.  A big step under multistepping contains several of these, each with
+/// a different active rung and therefore a different active set -- which is the
+/// grain the load balancer actually decides at, and the grain the physics side
+/// file records.  The nestedID is a run-global monotonic phase counter rather
+/// than the substep index, because advanceBigStep()'s `currentStep` counts in
+/// units of 1/MAXSUBSTEPS (MAXSUBSTEPS = 1<<30) and cannot be packed together
+/// with the step index into the single int a bracket carries.
+extern int gravityPhaseUE;
+
 extern int _prefetch;
 extern int _randChunks;
 extern int _numChunks;
@@ -582,10 +593,24 @@ class Main : public CBase_Main {
        void turnProjectionsOff();
 #endif
 
-       /// Collect per-TreePiece state for one big step and append it to the
+       /// Collect per-TreePiece state for one substep and append it to the
        /// physics side file. Opens the file on first use.
-       void writePhysics(int iStep);
+       ///
+       /// @param iStep      1-based big step, matching the simulationStepUE
+       ///                   bracket and the "Big step N took ..." log line.
+       ///                   advanceBigStep() takes a 0-based index, so its
+       ///                   caller adds one.
+       /// @param iSubStep   advanceBigStep()'s `currentStep`, in units of
+       ///                   1/MAXSUBSTEPS through the big step.  Reproduces
+       ///                   the run log's "Step: iStep + currentStep/
+       ///                   MAXSUBSTEPS" value, so a row can be found by eye.
+       /// @param iPhase     run-global monotonic substep counter, the join key
+       ///                   against the gravityPhaseUE bracket's nestedID.
+       void writePhysics(int iStep, int iSubStep, int iPhase);
        bool bPhysicsFirstWrite;
+       /// Counts substeps across the whole run, not within a big step, so that
+       /// it can serve as a unique bracket nestedID.  See gravityPhaseUE.
+       int nPhysicsPhase;
 
 
 public:

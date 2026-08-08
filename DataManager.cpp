@@ -1200,3 +1200,27 @@ void ProjectionsControl::endStep(int step, CkCallback cb) {
   traceEndUserBracketEventNestedID(simulationStepUE, step);
   contribute(cb);
 }
+
+/*
+ * Substep boundaries, nested inside the big-step brackets above.
+ *
+ * Same reasoning for living on the group rather than on Main.  These carry a
+ * run-global phase counter rather than a substep index; advanceBigStep()'s
+ * `currentStep` counts in units of 1/MAXSUBSTEPS with MAXSUBSTEPS = 1<<30, so
+ * (step, currentStep) does not fit in the single int a bracket carries and a
+ * monotonic counter is used instead.  The physics side file records the same
+ * counter, which is what joins the two.
+ *
+ * A big step's phase brackets sit strictly inside its step bracket, so the
+ * consumer sees a two-level nesting: distinct user event ids, each with its own
+ * (mIdx, nestedID) pairing state.
+ */
+void ProjectionsControl::beginPhase(int phase, CkCallback cb) {
+  traceBeginUserBracketEventNestedID(gravityPhaseUE, phase);
+  contribute(cb);
+}
+
+void ProjectionsControl::endPhase(int phase, CkCallback cb) {
+  traceEndUserBracketEventNestedID(gravityPhaseUE, phase);
+  contribute(cb);
+}
