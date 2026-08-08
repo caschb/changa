@@ -6751,11 +6751,28 @@ void TreePiece::emitPhysics(int step, const CkCallback& cb) {
   tpp.activeRung       = activeRung;
   tpp.prevRungLB       = iPrevRungLB;
   tpp.nParticles       = myNumParticles;
-  tpp.nActive          = myNumActiveParticles;
   tpp.nPrevActive      = nPrevActiveParts;
   tpp.numBuckets       = numBuckets;
-  tpp.numActiveBuckets = numActiveBuckets;
   tpp.tpLoad           = getObjTime();
+
+  // myNumActiveParticles and numActiveBuckets are #ifdef CUDA members, so
+  // neither exists in the CPU build. Recompute both here the same way
+  // calculateNumActiveParticles() and startGravity() do. myParticles is
+  // 1-indexed. This is O(nParticles + nBuckets) once per step per element,
+  // against a gravity phase that is orders of magnitude more work.
+  unsigned int nAct = 0;
+  if (myParticles != NULL) {
+    for (unsigned int i = 1; i <= myNumParticles; i++) {
+      if (myParticles[i].rung >= activeRung) nAct++;
+      }
+    }
+  tpp.nActive = nAct;
+
+  unsigned int nActBuckets = 0;
+  for (unsigned int i = 0; i < numBuckets && i < bucketList.size(); i++) {
+    if (bucketList[i]->rungs >= activeRung) nActBuckets++;
+    }
+  tpp.numActiveBuckets = nActBuckets;
 
   tpp.nodeInterLocal = nodeInterLocal;
   tpp.partInterLocal = particleInterLocal;
