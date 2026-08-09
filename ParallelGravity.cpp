@@ -157,6 +157,7 @@ int simulationStepUE;
 int gravityPhaseUE;
 int activeRungUS;
 int substepDtUS;
+int heapBytesUS;
 
 CkGroupID dataManagerID;
 CkArrayID treePieceID;
@@ -274,6 +275,7 @@ Main::Main(CkArgMsg* m) {
         // id, so the -1 that means "assign one" has to be written out.
         activeRungUS = traceRegisterUserStat("ActiveRung", -1);
         substepDtUS = traceRegisterUserStat("SubstepDt", -1);
+        heapBytesUS = traceRegisterUserStat("HeapBytes", -1);
 	
 	prmInitialize(&prm,_Leader,_Trailer);
 	csmInitialize(&param.csm);

@@ -209,6 +209,12 @@ extern int gravityPhaseUE;
 extern int activeRungUS;
 extern int substepDtUS;
 
+/// Resident set size of the process, recorded once per process per substep.
+/// Carried as a statistic rather than as a MEMORY_USAGE_CURRENT record because
+/// Charm++'s traceMemoryUsage() overflows for a heap above 2 GB; see
+/// residentBytes() in DataManager.cpp.
+extern int heapBytesUS;
+
 extern int _prefetch;
 extern int _randChunks;
 extern int _numChunks;

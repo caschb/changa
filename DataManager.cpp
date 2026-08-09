@@ -7,6 +7,10 @@
 #include "DataManager.h"
 #include "Reductions.h"
 #include "formatted_string.h"
+// For residentBytes(): fopen/fscanf and sysconf(_SC_PAGESIZE). Included
+// explicitly rather than relied on transitively through the Charm++ headers.
+#include <cstdio>
+#include <unistd.h>
 
 #ifdef CUDA
 #include "hapi.h"
@@ -1201,6 +1205,44 @@ void ProjectionsControl::endStep(int step, CkCallback cb) {
   contribute(cb);
 }
 
+namespace {
+
+/*
+ * Resident set size of this process in bytes, read from /proc/self/statm.
+ *
+ * Charm++'s own traceMemoryUsage() is unusable here, and the reason is worth
+ * recording because nothing about it is visible in a trace. It calls
+ * CmiMemoryUsage(), which falls back to glibc's mallinfo(); that struct's
+ * uordblks field is an int and overflows for any heap above 2 GB. memory.C
+ * then casts the negative int to an unsigned 64-bit value, sign-extending it
+ * to about 1.8e19, and the LogEntry constructor's conversion of that double
+ * back to a long is out of range and saturates to INT64_MIN.
+ *
+ * Measured 2026-08-09 on a 19-PE cube300 run: every one of the 5415
+ * MEMORY_USAGE_CURRENT records held exactly 2^63. The 32M-entry Projections
+ * log buffer alone reserves past 2 GB before the first sample is taken, so
+ * there is no early window in which the value is still good.
+ *
+ * Returns 0 when /proc is unreadable, which reaches the trace as a zero
+ * sample rather than as a gap.
+ */
+double residentBytes() {
+#ifdef __linux__
+  FILE *statm = fopen("/proc/self/statm", "r");
+  if (statm == NULL) return 0.0;
+  unsigned long pages_total = 0;
+  unsigned long pages_resident = 0;
+  int fields = fscanf(statm, "%lu %lu", &pages_total, &pages_resident);
+  fclose(statm);
+  if (fields != 2) return 0.0;
+  return (double) pages_resident * (double) sysconf(_SC_PAGESIZE);
+#else
+  return 0.0;
+#endif
+}
+
+}  // namespace
+
 /*
  * Substep boundaries, nested inside the big-step brackets above.
  *
@@ -1234,13 +1276,16 @@ void ProjectionsControl::beginPhase(int phase, int activeRung, double dtSub,
   updateStatPair(activeRungUS, (double) activeRung, dSimTime);
   updateStatPair(substepDtUS, dtSub, dSimTime);
 
-  // Heap occupancy on this PE at the substep boundary.  The runtime never
-  // samples memory on its own -- traceMemoryUsage() is an empty stub outside
-  // trace-projections and has no callers in Charm++ -- so this is the only
-  // way a memory series reaches the trace.  Sampling at the boundary rather
-  // than inside the substep keeps the series on the same cadence as the
-  // statistics above, so all three line up on one x axis.
-  traceMemoryUsage();
+  // Resident set size, recorded once per process rather than once per PE: RSS
+  // belongs to the process and an SMP build runs many PEs inside one, so a
+  // copy on every PE would be the same number repeated ppn times.
+  //
+  // This goes through updateStatPair instead of traceMemoryUsage() because the
+  // latter cannot produce a usable number on this workload -- see
+  // residentBytes() above.
+  if (CkMyRank() == 0) {
+    updateStatPair(heapBytesUS, residentBytes(), dSimTime);
+  }
 
   contribute(cb);
 }
