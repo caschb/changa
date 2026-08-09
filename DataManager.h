@@ -340,7 +340,8 @@ class ProjectionsControl : public CBase_ProjectionsControl {
 
   /// Open the bracket marking one substep of the rung loop on this PE, nested
   /// inside the big step's bracket.  See gravityPhaseUE.
-  void beginPhase(int phase, CkCallback cb);
+  void beginPhase(int phase, int activeRung, double dtSub, double dSimTime,
+                  CkCallback cb);
   /// Close the bracket opened by beginPhase() on this PE.
   void endPhase(int phase, CkCallback cb);
 

@@ -155,6 +155,8 @@ int tbFlushRequestsUE;
 int prefetchDoneUE;
 int simulationStepUE;
 int gravityPhaseUE;
+int activeRungUS;
+int substepDtUS;
 
 CkGroupID dataManagerID;
 CkArrayID treePieceID;
@@ -264,6 +266,14 @@ Main::Main(CkArgMsg* m) {
         // EVENT registry; change it here and the pipeline needs -s to match.
         simulationStepUE = traceRegisterUserEvent("SimulationStep");
         gravityPhaseUE = traceRegisterUserEvent("GravityPhase");
+
+        // Registered unconditionally, for the same reason as the events above:
+        // the STS STAT table is the pipeline's only source for a statistic's
+        // name, and a build that never emits a sample should still declare
+        // what it would have emitted.  traceRegisterUserStat takes no default
+        // id, so the -1 that means "assign one" has to be written out.
+        activeRungUS = traceRegisterUserStat("ActiveRung", -1);
+        substepDtUS = traceRegisterUserStat("SubstepDt", -1);
 	
 	prmInitialize(&prm,_Leader,_Trailer);
 	csmInitialize(&param.csm);
@@ -1934,7 +1944,12 @@ void Main::advanceBigStep(int iStep) {
     // and the kicks are part of the substep, and attributing their executions
     // anywhere else would leave gaps between consecutive phases.
     const int iPhase = nPhysicsPhase++;
-    prjgrp.beginPhase(iPhase, CkCallbackResumeThread());
+    // activeRung and the substep's dt are passed in rather than read on the
+    // group: ProjectionsControl carries no physics, and Main has both here.
+    // dTime rides along as the statistics' application-supplied time, so a
+    // sample can be placed in simulation time as well as in trace time.
+    prjgrp.beginPhase(iPhase, activeRung, RungToDt(param.dDelta, activeRung),
+                      dTime, CkCallbackResumeThread());
 #endif
 
     if(!param.bStaticTest) {

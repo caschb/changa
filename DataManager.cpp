@@ -1215,8 +1215,33 @@ void ProjectionsControl::endStep(int step, CkCallback cb) {
  * consumer sees a two-level nesting: distinct user event ids, each with its own
  * (mIdx, nestedID) pairing state.
  */
-void ProjectionsControl::beginPhase(int phase, CkCallback cb) {
+void ProjectionsControl::beginPhase(int phase, int activeRung, double dtSub,
+                                    double dSimTime, CkCallback cb) {
   traceBeginUserBracketEventNestedID(gravityPhaseUE, phase);
+
+  // Recorded once per PE per substep, at the point the bracket opens, so a
+  // sample is inside exactly one gravityPhaseUE interval and joins to it
+  // without an interval search.
+  //
+  // updateStatPair rather than updateStat: the second argument is the
+  // application's own time, and dTime is what makes a sample locatable in the
+  // simulation rather than only on the wall clock.  updateStat would store -1
+  // there, which the pipeline reads as absent.
+  //
+  // Both values are identical on every PE of a substep, which is the point:
+  // they are the substep's parameters, and having them on each PE means a
+  // consumer can join a PE's executions to them without going through PE 0.
+  updateStatPair(activeRungUS, (double) activeRung, dSimTime);
+  updateStatPair(substepDtUS, dtSub, dSimTime);
+
+  // Heap occupancy on this PE at the substep boundary.  The runtime never
+  // samples memory on its own -- traceMemoryUsage() is an empty stub outside
+  // trace-projections and has no callers in Charm++ -- so this is the only
+  // way a memory series reaches the trace.  Sampling at the boundary rather
+  // than inside the substep keeps the series on the same cadence as the
+  // statistics above, so all three line up on one x axis.
+  traceMemoryUsage();
+
   contribute(cb);
 }
 

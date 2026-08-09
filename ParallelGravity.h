@@ -196,6 +196,19 @@ extern int simulationStepUE;
 /// with the step index into the single int a bracket carries.
 extern int gravityPhaseUE;
 
+/// Registered user statistics, recorded once per PE per substep alongside the
+/// gravityPhaseUE bracket. Both describe the substep the bracket opens: the
+/// rung being advanced, and the physical timestep that rung corresponds to.
+/// They are what explains why two substeps of one big step cost different
+/// amounts, which the trace alone shows without accounting for.
+///
+/// Both are recorded with updateStatPair(), whose second argument carries the
+/// simulation time. That column is the application's own clock and is not the
+/// trace's microsecond timeline; the consumer keeps it separately for exactly
+/// that reason.
+extern int activeRungUS;
+extern int substepDtUS;
+
 extern int _prefetch;
 extern int _randChunks;
 extern int _numChunks;
