@@ -64,6 +64,14 @@ mainmodule ParallelGravity {
   readonly int prefetchDoneUE;
   readonly int simulationStepUE;
   readonly int gravityPhaseUE;
+  // These must be readonly for the same reason the user events above are.
+  // Main runs on PE 0 alone, and a plain global is per-process in an SMP
+  // build, so every process but PE 0's would keep the initial 0 and record
+  // all three statistics under stat id 0. A single-node run cannot show this:
+  // there is only one process, and it is Main's.
+  readonly int activeRungUS;
+  readonly int substepDtUS;
+  readonly int heapBytesUS;
 
 #ifdef PUSH_GRAVITY
   readonly CkGroupID ckMulticastGrpId;
