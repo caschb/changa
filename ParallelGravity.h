@@ -168,6 +168,48 @@ extern CProxy_PETreeMerger peTreeMergerProxy;
 extern CProxy_CkCacheManager<KeyType> cacheGravPart;
 extern CProxy_CkCacheManager<KeyType> cacheSmoothPart;
 extern CProxy_CkCacheManager<KeyType> cacheNode;
+extern CProxy_CacheStatsCollector cacheStatsProxy;
+
+/// Per-PE tally of ChaNGa's requests into the three CkCacheManager groups.
+/// CHANGA_CACHE_STATS counts here, on the ChaNGa side of the cache interface,
+/// because the library-side counters only exist under COSMO_STATS, whose
+/// layout changes corrupt task-per-core runs.  A request that returns no data
+/// (the fetch is remote and still outstanding) counts as a miss; arrivals and
+/// peak storage are not observed from this side and reduce as zero.
+class CacheStatsCollector : public CBase_CacheStatsCollector {
+public:
+  /// Order matches the cacheNode/cacheGravPart/cacheSmoothPart print order.
+  enum { NODE = 0, GRAVPART = 1, SMOOTHPART = 2, NCACHES = 3 };
+  CmiUInt8 requests[NCACHES];
+  CmiUInt8 misses[NCACHES];
+  CacheStatsCollector() {
+    for(int i = 0; i < NCACHES; i++)
+      requests[i] = misses[i] = 0;
+  }
+  CacheStatsCollector(CkMigrateMessage *m) : CBase_CacheStatsCollector(m) {
+    for(int i = 0; i < NCACHES; i++)
+      requests[i] = misses[i] = 0;
+  }
+  inline void count(int cache, bool miss) {
+    requests[cache]++;
+    if(miss)
+      misses[cache]++;
+  }
+  void collectStatistics(int cache, CkCallback cb) {
+#if CHANGA_CACHE_STATS > 0
+    CkCacheStatistics cs(0, 0, misses[cache], 0, 0, requests[cache], 0,
+                         CkMyPe());
+    contribute(sizeof(CkCacheStatistics), &cs, CkCacheStatistics::sum, cb);
+#else
+    CkAbort("CacheStatsCollector requires CHANGA_CACHE_STATS");
+#endif
+  }
+  void pup(PUP::er &p) {
+    CBase_CacheStatsCollector::pup(p);
+    PUParray(p, requests, (int)NCACHES);
+    PUParray(p, misses, (int)NCACHES);
+  }
+};
 
 /// The group ID of your DataManager.  You must set this!
 extern CkGroupID dataManagerID;

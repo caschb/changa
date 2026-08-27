@@ -5464,6 +5464,10 @@ GenericTreeNode* TreePiece::requestNode(int remoteIndex, Tree::NodeKey key,
     CkCacheRequestorData<KeyType> request(thisElement, &EntryTypeGravityNode::callback, userData);
     CkArrayIndexMax remIdx = CkArrayIndex1D(remoteIndex);
     GenericTreeNode *res = (GenericTreeNode *) cacheNode.ckLocalBranch()->requestData(key,remIdx,chunk,&gravityNodeEntry,request);
+#if CHANGA_CACHE_STATS > 0
+    cacheStatsProxy.ckLocalBranch()->count(CacheStatsCollector::NODE,
+                                           res == NULL);
+#endif
 
 #ifdef CHANGA_REFACTOR_INTERLIST_PRINT_BUCKET_START_FIN
     if(source && !res){
@@ -5501,6 +5505,10 @@ ExternalGravityParticle *TreePiece::requestParticles(Tree::NodeKey key,int chunk
     //
     KeyType ckey = key<<1;
     CacheParticle *p = (CacheParticle *) cacheGravPart.ckLocalBranch()->requestData(ckey,remIdx,chunk,&gravityParticleEntry,request);
+#if CHANGA_CACHE_STATS > 0
+    cacheStatsProxy.ckLocalBranch()->count(CacheStatsCollector::GRAVPART,
+                                           p == NULL);
+#endif
     if (p == NULL) {
 #ifdef CHANGA_REFACTOR_INTERLIST_PRINT_BUCKET_START_FIN
       if(source){
@@ -5544,6 +5552,10 @@ TreePiece::requestSmoothParticles(Tree::NodeKey key,int chunk,int remoteIndex,
     CkArrayIndexMax remIdx = CkArrayIndex1D(remoteIndex);
     KeyType ckey = key<<1;
     CacheSmoothParticle *p = (CacheSmoothParticle *) cacheSmoothPart.ckLocalBranch()->requestData(ckey,remIdx,chunk,&smoothParticleEntry,request);
+#if CHANGA_CACHE_STATS > 0
+    cacheStatsProxy.ckLocalBranch()->count(CacheStatsCollector::SMOOTHPART,
+                                           p == NULL);
+#endif
     if (p == NULL) {
       return NULL;
     }

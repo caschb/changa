@@ -75,6 +75,8 @@ CProxy_CkCacheManager<KeyType> cacheGravPart;
 CProxy_CkCacheManager<KeyType> cacheSmoothPart;
 /// @brief Proxy for the tree node cache group.
 CProxy_CkCacheManager<KeyType> cacheNode;
+/// @brief Proxy for the ChaNGa-side cache request counters.
+CProxy_CacheStatsCollector cacheStatsProxy;
 /// @brief Proxy for the DataManager
 CProxy_DataManager dMProxy;
 /// @brief Proxy for Managing IntraNode load balancing with ckloop.
@@ -1382,6 +1384,7 @@ Main::Main(CkArgMsg* m) {
 	cacheSmoothPart = CProxy_CkCacheManager<KeyType>::ckNew(cacheSize, pieces.ckLocMgr()->getGroupID());
 	// Nodes
 	cacheNode = CProxy_CkCacheManager<KeyType>::ckNew(cacheSize, pieces.ckLocMgr()->getGroupID());
+	cacheStatsProxy = CProxy_CacheStatsCollector::ckNew();
 
 	//create the DataManager
 	CProxy_DataManager dataManager = CProxy_DataManager::ckNew(pieces);
@@ -2143,8 +2146,8 @@ void Main::advanceBigStep(int iStep) {
     writePhysics(iStep + 1, currentStep, iPhase);
 #endif
 
-#if COSMO_STATS > 0
-    /********* TreePiece Statistics ********/
+#if COSMO_STATS > 0 || CHANGA_CACHE_STATS > 0
+    /********* Statistics header; parse_cache_stats.py keys on it ********/
     ckerr << "Total statistics iteration " << iStep << "/";
     int printingStep = currentStep;
     while (printingStep) {
@@ -2152,6 +2155,9 @@ void Main::advanceBigStep(int iStep) {
       printingStep = (printingStep & ~MAXSUBSTEPS) << 1;
     }
     //ckerr << " (rungs " << activeRung << "-" << nextMaxRung << ")" << ":" << endl;
+#endif
+#if COSMO_STATS > 0
+    /********* TreePiece Statistics ********/
     CkReductionMsg *tps;
     treeProxy.collectStatistics(CkCallbackResumeThread((void*&)tps));
     ((TreePieceStatistics*)tps->getData())->printTo(ckerr);
@@ -2159,12 +2165,16 @@ void Main::advanceBigStep(int iStep) {
 
 #if CHANGA_CACHE_STATS > 0
     /********* Cache Statistics ********/
+    ckerr << endl;
     CkReductionMsg *cs;
-    cacheNode.collectStatistics(CkCallbackResumeThread((void*&)cs));
+    cacheStatsProxy.collectStatistics(CacheStatsCollector::NODE,
+                                      CkCallbackResumeThread((void*&)cs));
     ((CkCacheStatistics*)cs->getData())->printTo(ckerr);
-    cacheGravPart.collectStatistics(CkCallbackResumeThread((void*&)cs));
+    cacheStatsProxy.collectStatistics(CacheStatsCollector::GRAVPART,
+                                      CkCallbackResumeThread((void*&)cs));
     ((CkCacheStatistics*)cs->getData())->printTo(ckerr);
-    cacheSmoothPart.collectStatistics(CkCallbackResumeThread((void*&)cs));
+    cacheStatsProxy.collectStatistics(CacheStatsCollector::SMOOTHPART,
+                                      CkCallbackResumeThread((void*&)cs));
     ((CkCacheStatistics*)cs->getData())->printTo(ckerr);
 #endif
 
@@ -2781,9 +2791,12 @@ Main::initialForces()
   string achLogFileName = string(param.achOutName) + ".log";
   calcEnergy(dTime, CkWallTimer() - startTime, achLogFileName.c_str());
 
+#if COSMO_STATS > 0 || CHANGA_CACHE_STATS > 0
+  /********* Statistics header; parse_cache_stats.py keys on it ********/
+  ckerr << "Total statistics initial iteration :" << endl;
+#endif
 #if COSMO_STATS > 0
   /********* TreePiece Statistics ********/
-  ckerr << "Total statistics initial iteration :" << endl;
   CkReductionMsg *tps;
   treeProxy.collectStatistics(CkCallbackResumeThread((void*&)tps));
   ((TreePieceStatistics*)tps->getData())->printTo(ckerr);
@@ -2792,11 +2805,14 @@ Main::initialForces()
 #if CHANGA_CACHE_STATS > 0
   /********* Cache Statistics ********/
   CkReductionMsg *cs;
-  cacheNode.collectStatistics(CkCallbackResumeThread((void*&)cs));
+  cacheStatsProxy.collectStatistics(CacheStatsCollector::NODE,
+                                    CkCallbackResumeThread((void*&)cs));
   ((CkCacheStatistics*)cs->getData())->printTo(ckerr);
-  cacheGravPart.collectStatistics(CkCallbackResumeThread((void*&)cs));
+  cacheStatsProxy.collectStatistics(CacheStatsCollector::GRAVPART,
+                                    CkCallbackResumeThread((void*&)cs));
   ((CkCacheStatistics*)cs->getData())->printTo(ckerr);
-  cacheSmoothPart.collectStatistics(CkCallbackResumeThread((void*&)cs));
+  cacheStatsProxy.collectStatistics(CacheStatsCollector::SMOOTHPART,
+                                    CkCallbackResumeThread((void*&)cs));
   ((CkCacheStatistics*)cs->getData())->printTo(ckerr);
 #endif
   

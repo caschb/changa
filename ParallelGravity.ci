@@ -19,6 +19,7 @@ mainmodule ParallelGravity {
   readonly CProxy_CkCacheManager<KeyType> cacheNode;
   readonly CProxy_CkCacheManager<KeyType> cacheGravPart;
   readonly CProxy_CkCacheManager<KeyType> cacheSmoothPart;
+  readonly CProxy_CacheStatsCollector cacheStatsProxy;
   readonly CProxy_DataManager dMProxy;
   readonly CProxy_PETreeMerger peTreeMergerProxy;
   readonly CProxy_DumpFrameData dfDataProxy;
@@ -218,7 +219,12 @@ mainmodule ParallelGravity {
     entry [notrace] void beginPhase(int phase, int activeRung, double dtSub,
                                     double dSimTime, CkCallback);
     entry [notrace] void endPhase(int phase, CkCallback);
-  };                                                          
+  };
+
+  group [migratable] CacheStatsCollector {
+    entry CacheStatsCollector();
+    entry void collectStatistics(int cache, CkCallback cb);
+  };
 
 #ifdef REDUCTION_HELPER
   group [migratable] ReductionHelper {
