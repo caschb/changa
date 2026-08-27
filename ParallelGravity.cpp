@@ -2155,7 +2155,9 @@ void Main::advanceBigStep(int iStep) {
     CkReductionMsg *tps;
     treeProxy.collectStatistics(CkCallbackResumeThread((void*&)tps));
     ((TreePieceStatistics*)tps->getData())->printTo(ckerr);
+#endif
 
+#if CHANGA_CACHE_STATS > 0
     /********* Cache Statistics ********/
     CkReductionMsg *cs;
     cacheNode.collectStatistics(CkCallbackResumeThread((void*&)cs));
@@ -2785,7 +2787,9 @@ Main::initialForces()
   CkReductionMsg *tps;
   treeProxy.collectStatistics(CkCallbackResumeThread((void*&)tps));
   ((TreePieceStatistics*)tps->getData())->printTo(ckerr);
-  
+#endif
+
+#if CHANGA_CACHE_STATS > 0
   /********* Cache Statistics ********/
   CkReductionMsg *cs;
   cacheNode.collectStatistics(CkCallbackResumeThread((void*&)cs));
@@ -4237,8 +4241,10 @@ void Main::memoryStatsCache()
     }
 
 void registerStatistics() {
-#if COSMO_STATS > 0
+#if CHANGA_CACHE_STATS > 0
   CkCacheStatistics::sum = CkReduction::addReducer(CkCacheStatistics::sumFn);
+#endif
+#if COSMO_STATS > 0
   TreePieceStatistics::sum = CkReduction::addReducer(TreePieceStatistics::sumFn);
 #endif
 #ifdef HPM_COUNTER
