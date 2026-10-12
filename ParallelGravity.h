@@ -430,6 +430,16 @@ class CountSetPart
 /// which is what ChaNGa already uses for CountSetPart. concat does NOT order
 /// its contributions, so `index` carries the join key rather than the array
 /// position.
+// Exact particle identity and ownership for optional spatial visualization.
+// Flat records are concatenated after the measured GravityPhase has closed.
+struct ParticleSpatialRow {
+    int64_t order;
+    u_int64_t key;
+    int index, pe, rung;
+    double position[3], velocity[3], acceleration[3];
+    double mass, potential;
+};
+
 class TreePiecePhysics
 {
  public:
@@ -686,6 +696,7 @@ class Main : public CBase_Main {
        /// @param iPhase     run-global monotonic substep counter, the join key
        ///                   against the gravityPhaseUE bracket's nestedID.
        void writePhysics(int iStep, int iSubStep, int iPhase);
+       void writeSpatialSnapshot(int step, int phase, int activeRung);
        bool bPhysicsFirstWrite;
        /// Counts substeps across the whole run, not within a big step, so that
        /// it can serve as a unique bracket nestedID.  See gravityPhaseUE.
@@ -2118,6 +2129,7 @@ public:
   /// definition would leave the generated dispatch code unresolved in a base
   /// build. Only the call site in Main::doSimulation() is guarded.
   void emitPhysics(int step, const CkCallback& cb);
+  void emitSpatialSnapshot(const CkCallback& cb);
   bool havePhaseData(int phase);
   void savePhaseData(std::vector<double> &loads, std::vector<unsigned int>
     &parts_per_phase, double* shuffleloads, unsigned int *shuffleparts,

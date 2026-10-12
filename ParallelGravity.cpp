@@ -1941,6 +1941,7 @@ void Main::advanceBigStep(int iStep) {
   int activeRung = 0;  // the minimum rung that is active
   int nextMaxRung = 0; // the rung that determines the smallest time for advancing
 
+  bool spatialHighCaptured = false;
   while (currentStep < MAXSUBSTEPS) {
 
 #ifdef CHANGA_TRACE_TIMESTEPS
@@ -2209,6 +2210,17 @@ void Main::advanceBigStep(int iStep) {
 
 #ifdef CHANGA_TRACE_TIMESTEPS
     prjgrp.endPhase(iPhase, CkCallbackResumeThread());
+#ifdef CHANGA_VIZ_SNAPSHOTS
+    // Capture one rung-4 state and the closing rung-0 state of selected big
+    // steps. Positions, identities and ownership are read together, before
+    // any next-phase drift or decomposition. Output is outside the bracket.
+    const int spatialStep = iStep + 1;
+    if ((spatialStep == 1 || spatialStep == 4 || spatialStep == 8 || spatialStep == 16)
+        && (activeRung == 0 || (activeRung == 4 && !spatialHighCaptured))) {
+      writeSpatialSnapshot(spatialStep, iPhase, activeRung);
+      if (activeRung == 4) spatialHighCaptured = true;
+    }
+#endif
 #endif
 
   }
@@ -2868,6 +2880,36 @@ int safeMkdir(const char *achFile);
 /// rows, which is negligible beside a trace measured in gigabytes, and being
 /// readable makes a bad column obvious rather than something to discover
 /// three transformations downstream.
+void Main::writeSpatialSnapshot(int step, int phase, int activeRung)
+{
+    CkReductionMsg *msg;
+    treeProxy.emitSpatialSnapshot(CkCallbackResumeThread((void*&)msg));
+    const ParticleSpatialRow *rows = (const ParticleSpatialRow*)msg->getData();
+    const size_t count = msg->getSize() / sizeof(ParticleSpatialRow);
+    CkAssert(msg->getSize() == count * sizeof(ParticleSpatialRow));
+    char suffix[80];
+    snprintf(suffix, sizeof(suffix), ".particles.phase%06d.csv", phase);
+    const std::string name = std::string(param.achOutName) + suffix;
+    FILE *fp = fopen(name.c_str(), "w");
+    CkMustAssert(fp != NULL, "Cannot create particle spatial snapshot");
+    fprintf(fp, "step,phase,active_rung,sim_time,index,pe,particle_id,key,rung,mass,"
+                "x,y,z,vx,vy,vz,ax,ay,az,potential\n");
+    for (size_t i = 0; i < count; ++i) {
+        const ParticleSpatialRow &r = rows[i];
+        fprintf(fp, "%d,%d,%d,%.17g,%d,%d,%lld,%llu,%d,%.17g,"
+                    "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n",
+                step, phase, activeRung, dTime, r.index, r.pe,
+                (long long)r.order, (unsigned long long)r.key, r.rung, r.mass,
+                r.position[0], r.position[1], r.position[2],
+                r.velocity[0], r.velocity[1], r.velocity[2],
+                r.acceleration[0], r.acceleration[1], r.acceleration[2], r.potential);
+    }
+    CkMustAssert(fclose(fp) == 0, "Cannot finish particle spatial snapshot");
+    CkPrintf("[spatial] step %d phase %d rung %d: %zu particles in %s\n",
+             step, phase, activeRung, count, name.c_str());
+    delete msg;
+}
+
 void Main::writePhysics(int iStep, int iSubStep, int iPhase)
 {
     CkReductionMsg *msg;

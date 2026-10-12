@@ -6833,3 +6833,26 @@ void TreePiece::emitPhysics(int step, const CkCallback& cb) {
 
   contribute(sizeof(tpp), &tpp, CkReduction::concat, cb);
 }
+
+void TreePiece::emitSpatialSnapshot(const CkCallback& cb) {
+  std::vector<ParticleSpatialRow> rows(myNumParticles);
+  for (unsigned int i = 1; i <= myNumParticles; ++i) {
+    const GravityParticle &p = myParticles[i];
+    ParticleSpatialRow &r = rows[i - 1];
+    r.order = p.iOrder;
+    r.key = (u_int64_t)p.key;
+    r.index = thisIndex;
+    r.pe = CkMyPe();
+    r.rung = p.rung;
+    r.mass = p.mass;
+    // Potential is not carried by GravityParticle's migration/PUP path.
+    // Only active particles have it recomputed in this gravity phase.
+    // Do not read an inactive particle's potentially uninitialized value.
+    r.potential = p.rung >= activeRung ? p.potential : HUGE_VAL;
+    r.position[0] = p.position.x; r.position[1] = p.position.y; r.position[2] = p.position.z;
+    r.velocity[0] = p.velocity.x; r.velocity[1] = p.velocity.y; r.velocity[2] = p.velocity.z;
+    r.acceleration[0] = p.treeAcceleration.x; r.acceleration[1] = p.treeAcceleration.y;
+    r.acceleration[2] = p.treeAcceleration.z;
+  }
+  contribute(rows.size() * sizeof(ParticleSpatialRow), rows.data(), CkReduction::concat, cb);
+}
